@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:image_downloader/image_downloader.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:theme_provider/theme_provider.dart';
 import 'package:uwall/unsplash_image/image_provider.dart' as prefix0;
 import 'package:uwall/unsplash_image/info_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,6 +29,9 @@ class _ImagePageState extends State<ImagePage> {
 
   ///Check whether Bottom Sheet is open or not.
   bool _bottomSheetStatus = false;
+
+  ///create channel for setting wallpaper
+  static const platform = const MethodChannel('com.deathstorm.uwall/wallpaper');
 
   /// Displayed image.
   UnsplashImage image;
@@ -92,8 +98,7 @@ class _ImagePageState extends State<ImagePage> {
                 if (_bottomSheetStatus == false) {
                   bottomSheetController = _showInfoBottomSheet();
                   _bottomSheetStatus = true;
-                }
-                else{
+                } else {
                   _bottomSheetStatus = false;
                   Navigator.of(context).pop();
                 }
@@ -114,6 +119,12 @@ class _ImagePageState extends State<ImagePage> {
             tooltip: 'Download Image',
             onPressed: _downloadImage,
           ),
+          IconButton(
+            icon: Icon(Icons.brush),
+            color: Colors.white,
+            tooltip: 'Set Wallpaper',
+            onPressed: _showDialog,
+          )
         ],
       );
 
@@ -133,18 +144,17 @@ class _ImagePageState extends State<ImagePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-          // set the global key
-          key: _scaffoldKey,
-          backgroundColor: Colors.black,
-          body: Stack(
-            children: <Widget>[
-              _buildPhotoView(widget.imageId, widget.imageUrl),
-              // wrap in Positioned to not use entire screen
-              Positioned(
-                  top: 0.0, left: 0.0, right: 0.0, child: _buildAppBar()),
-            ],
-          ),
-        );
+      // set the global key
+      key: _scaffoldKey,
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: <Widget>[
+          _buildPhotoView(widget.imageId, widget.imageUrl),
+          // wrap in Positioned to not use entire screen
+          Positioned(top: 0.0, left: 0.0, right: 0.0, child: _buildAppBar()),
+        ],
+      ),
+    );
   }
 
   /// Shows a BottomSheet containing image info.
@@ -152,5 +162,63 @@ class _ImagePageState extends State<ImagePage> {
     return _scaffoldKey.currentState.showBottomSheet(
       (context) => InfoSheet(image),
     );
+  }
+
+  ///set wallpaper
+  Future<void> _setWallpaper(int wallpaperType) async {
+    var file = await DefaultCacheManager().getSingleFile(widget.imageUrl);
+    try {
+      final int result = await platform
+          .invokeMethod('setWallpaper', [file.path, wallpaperType]);
+      print('Wallpaper Updated ...$result');
+    } on PlatformException catch (e) {
+      print('Failed to set wallpaper ${e.message}');
+    }
+  }
+
+  _showDialog() {
+    showDialog(
+        context: context,
+        builder: (context) {
+          return SimpleDialog(
+            backgroundColor: Theme
+                .of(context)
+                .dialogBackgroundColor,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0)
+            ),
+            title: Text(
+              'Where to apply',
+              style: TextStyle(
+                  color: Theme
+                      .of(context)
+                      .textTheme
+                      .display1
+                      .color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 30.0),
+            ),
+            children: <Widget>[
+              SimpleDialogOption(
+                child: Text('Homescreen'),
+                onPressed: () {
+                  _setWallpaper(1);
+                },
+              ),
+              SimpleDialogOption(
+                child: Text('Lockscreen'),
+                onPressed: () {
+                  _setWallpaper(2);
+                },
+              ),
+              SimpleDialogOption(
+                child: Text('Both'),
+                onPressed: () {
+                  _setWallpaper(3);
+                },
+              )
+            ],
+          );
+        });
   }
 }
